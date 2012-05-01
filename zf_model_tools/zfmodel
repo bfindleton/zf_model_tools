@@ -1,0 +1,93 @@
+#!/usr/bin/zsh
+if [[ $# < 5 ]];then
+  echo -e "\n$0 usage: 5 required arguments"
+  echo "1) class (i.e User)"
+  echo "2) table (i.e users)"
+  echo "3) mysql db"
+  echo "4) mysql user"
+  echo -e "5) mysql pw\n"
+  exit;
+fi
+
+setopt shwordsplit
+class=$1
+table=$2
+db=$3
+user=$4
+pw=$5
+
+columns=$(/usr/bin/mysql -Nb -D$db -u$user -p$pw -e "show columns from $table"| cut -f1 )
+colmax=-1
+for c in $columns;do
+  (( colmax = $colmax+1 ))
+done
+echo "<?php"
+echo "/**"
+echo " * ${class} object definition"
+echo " * @package Application_Model_"
+echo " */"
+echo "/**"
+echo " * ${class} class"
+echo " *"
+echo " * Contains table mappings and accessors"
+echo " */"
+echo ""
+echo "class Application_Model_${class}"
+echo "{"
+for c in $columns;do
+    echo "    protected \$_$c;"
+done
+echo ""
+echo "    public function __construct(array \$options = null)"
+echo "    {"
+echo "        if (is_array(\$options)) {"
+echo "            \$this->setOptions(\$options);"
+echo "        }"
+echo "    }"
+echo ""
+echo "    public function __set(\$name, \$value)"
+echo "    {"
+echo "        \$method = 'set' . \$name;"
+echo "        if (('mapper' == \$name) || !method_exists(\$this, \$method)) {"
+echo "            throw new Exception('Invalid ${table} property');"
+echo "        }"
+echo "        \$this->\$method(\$value);"
+echo "    }"
+echo ""
+echo "    public function __get(\$name)"
+echo "    {"
+echo "        \$method = 'get' . \$name;"
+echo "        if (('mapper' == \$name) || !method_exists(\$this, \$method)) {"
+echo "            throw new Exception('Invalid ${table} property');"
+echo "        }"
+echo "        return \$this->\$method();"
+echo "    }"
+echo ""
+echo "    public function setOptions(array \$options)"
+echo "    {"
+echo "        \$methods = get_class_methods(\$this);"
+echo "        foreach (\$options as \$key => \$value) {"
+echo "            \$method = 'set' . ucfirst(\$key);"
+echo "            if (in_array(\$method, \$methods)) {"
+echo "                \$this->\$method(\$value);"
+echo "            }"
+echo "        }"
+echo "        return \$this;"
+echo "    }"
+echo ""
+for c in $columns;do
+    capVar=${(C)c}
+    cleanVar=${capVar/_/}
+    echo "    public function set${cleanVar}(\$${c})"
+    echo "    {"
+    echo "        \$this->_${c} = (string) \$${c};"
+    echo "        return \$this;"
+    echo "    }"
+    echo ""
+    echo "    public function get${cleanVar}()"
+    echo "    {"
+    echo "        return \$this->_${c};"
+    echo "    }"
+    echo ""
+done
+echo "}"

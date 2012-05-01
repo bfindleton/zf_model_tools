@@ -1,0 +1,126 @@
+#!/usr/bin/zsh
+if [[ $# < 5 ]];then
+  echo -e "\n$0 usage: 5 required arguments"
+  echo "1) class (i.e User)"
+  echo "2) table (i.e users)"
+  echo "3) mysql db"
+  echo "4) mysql user"
+  echo -e "5) mysql pw\n"
+  exit;
+fi
+
+setopt shwordsplit
+class=$1
+table=$2
+db=$3
+user=$4
+pw=$5
+
+columns=$(/usr/bin/mysql -Nb -D$db -u$user -p$pw -e "show columns from $table"| cut -f1 )
+colmax=-1
+for c in $columns;do
+  (( colmax = $colmax+1 ))
+done
+echo "<?php"
+echo "/**"
+echo "* ${class} Mapper object definition"
+echo "* @package Mapper"
+echo "*/"
+echo "/**"
+echo "* ${class}Mapper class"
+echo "* Maps ${class} objects to database"
+echo "*/"
+echo ""
+echo "class Application__Model_${class}Mapper"
+echo "{"
+echo "    protected \$_dbTable;"
+echo ""
+echo "    public function setDbTable(\$dbTable)"
+echo "    {"
+echo "        if (is_string(\$dbTable)) {"
+echo "            \$dbTable = new \$dbTable();"
+echo "        }"
+echo "        if (!\$dbTable instanceof Zend_Db_Table_Abstract) {"
+echo "            throw new Exception('Invalid table data gateway provided');"
+echo "        }"
+echo "        \$this->_dbTable = \$dbTable;"
+echo "        return \$this;"
+echo "    }"
+echo ""
+echo "    public function getDbTable()"
+echo "    {"
+echo "        if (null === \$this->_dbTable) {"
+echo "            \$this->setDbTable('Application_Model_DbTable_${class}');"
+echo "        }"
+echo "        return \$this->_dbTable;"
+echo "    }"
+echo ""
+echo "    public function save(Application_Model_${class} \$${table})"
+echo "    {"
+
+echo "        \$data = array("
+for c in $columns;do
+    capVar=${(C)c}
+    cleanVar=${capVar/_/}
+    echo "                '${c}' => \$${table}->get${cleanVar}(),"
+done
+echo "        );"
+echo ""
+echo "        if (null === (\$id = \$${table}->getId())) {"
+echo "            unset(\$data['id']);"
+echo "            \$this->getDbTable()->insert(\$data);"
+echo "        } else {"
+echo "            \$this->getDbTable()->update(\$data, array('id = ?' => \$id));"
+echo "        }"
+echo "    }"
+echo ""
+
+
+echo "    public function find(\$id, Application_Model_${class} \$${table})"
+echo "    {"
+echo "        \$result = \$this->getDbTable()->find(\$id);"
+echo "        if (0 == count(\$result)) {"
+echo "            return;"
+echo "        }"
+echo "        \$row = \$result->current();"
+echo "        \$${table}"
+colcnt=-1
+for c in $columns;do
+    (( colcnt = $colcnt+1 ))
+    capVar=${(C)c}
+    cleanVar=${capVar/_/}
+    echo -n "             ->set${cleanVar}(\$row->${c})"
+    if [[ $colcnt != $colmax ]];then
+        echo ""
+    else
+        echo ";"
+    fi
+done
+echo ""
+echo "    }"
+echo ""
+echo "    public function fetchAll()"
+echo "    {"
+echo "        \$resultSet = \$this->getDbTable()->fetchAll();"
+echo "        \$entries   = array();"
+echo "        foreach (\$resultSet as \$row) {"
+echo "            \$entry = new Application_Model_${class}();"
+echo "            \$entry"
+colcnt=-1
+for c in $columns;do
+    (( colcnt = $colcnt+1 ))
+    capVar=${(C)c}
+    cleanVar=${capVar/_/}
+    echo -n "                 ->set${cleanVar}(\$row->${c})"
+    if [[ $colcnt != $colmax ]];then
+        echo ""
+    else
+        echo ";"
+    fi
+done
+echo "            \$entries[] = \$entry;"
+echo "        }"
+echo "        return \$entries;"
+echo "    }"
+echo "}"
+echo ""

@@ -1,0 +1,26 @@
+#!/usr/bin/zsh
+if [[ $# < 6 ]];then
+  echo -e "\n$0 usage: 6 required arguments"
+  echo "1) class (i.e User)"
+  echo "2) table (i.e users)"
+  echo "3) module (i.e admin)"
+  echo "4) mysql db"
+  echo "5) mysql user"
+  echo -e "6) mysql pw\n"
+  exit;
+fi
+setopt shwordsplit
+class=$1
+table=$2
+module=$3
+db=$4
+user=$5
+pw=$6
+
+/usr/local/zend/share/ZendFramework/bin/zf.sh create db-table ${(C)class} $table
+zfmodel $class $table $db $user $pw > application/models/${(C)class}.php
+zfmapper $class $table $db $user $pw > application/models/${(C)class}Mapper.php
+/usr/local/zend/share/ZendFramework/bin/zf.sh create module ${module:l}
+/usr/local/zend/share/ZendFramework/bin/zf.sh create controller ${(C)class} index-action-included=1 ${module:l}
+/usr/local/zend/share/ZendFramework/bin/zf.sh enable form ${module:l}
+formgen ${module:l} ${(C)class} $table $db $user $pw > application/modules/${module:l}/forms/${(C)class}.php
